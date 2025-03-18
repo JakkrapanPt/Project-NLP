@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Segmentation Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Word Segmentation Game</h1>
+            <p>Test your language skills by segmenting words correctly!</p>
+        </header>
+        
+        <section class="game-options">
+            <h2>Choose Your Game</h2>
+            
+            <div class="language-selection">
+                <h3>Select Language:</h3>
+                <div class="options">
+                    <button class="option-btn active" id="thai-btn" onclick="selectLanguage('thai')">Thai</button>
+                    <button class="option-btn" id="english-btn" onclick="selectLanguage('english')">English</button>
+                </div>
+            </div>
+            
+            <div class="difficulty-selection">
+                <h3>Select Difficulty:</h3>
+                <div class="options">
+                    <button class="option-btn active" id="easy-btn" onclick="selectMode('easy')">Easy</button>
+                    <button class="option-btn" id="challenge-btn" onclick="selectMode('challenge')">Challenge</button>
+                </div>
+            </div>
+            
+            <button class="start-btn" onclick="startGame()">Start Game</button>
+        </section>
+        
+        <section class="instructions">
+            <h2>How to Play</h2>
+            <ul>
+                <li>You will be presented with text without spaces</li>
+                <li>Click between characters to add word boundaries</li>
+                <li>Submit your answer when you think it's correct</li>
+                <li>Score points for correct segmentation!</li>
+            </ul>
+        </section>
+        
+        <section class="high-scores">
+            <h2>High Scores</h2>
+            <div class="score-tabs">
+                <button class="tab-btn active" onclick="showScores('thai', 'easy')">Thai - Easy</button>
+                <button class="tab-btn" onclick="showScores('thai', 'challenge')">Thai - Challenge</button>
+                <button class="tab-btn" onclick="showScores('english', 'easy')">English - Easy</button>
+                <button class="tab-btn" onclick="showScores('english', 'challenge')">English - Challenge</button>
+            </div>
+            <div class="scores-container" id="scores-list">
+                <p>Loading scores...</p>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Game settings
+        let selectedLanguage = 'thai';
+        let selectedMode = 'easy';
+        
+        // Language selection
+        function selectLanguage(language) {
+            selectedLanguage = language;
+            document.querySelectorAll('.language-selection .option-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(language + '-btn').classList.add('active');
+            showScores(selectedLanguage, selectedMode);
+        }
+        
+        // Mode selection
+        function selectMode(mode) {
+            selectedMode = mode;
+            document.querySelectorAll('.difficulty-selection .option-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(mode + '-btn').classList.add('active');
+            showScores(selectedLanguage, selectedMode);
+        }
+        
+        // Start game
+        function startGame() {
+            window.location.href = `/game?language=${selectedLanguage}&mode=${selectedMode}`;
+        }
+        
+        // Show high scores
+        function showScores(language, mode) {
+            const scoresList = document.getElementById('scores-list');
+            scoresList.innerHTML = '<p>Loading scores...</p>';
+            
+            fetch(`/api/high-scores?language=${language}&mode=${mode}`)
+                .then(response => response.json())
+                .then(scores => {
+                    if (scores.length === 0) {
+                        scoresList.innerHTML = '<p>No scores yet. Be the first to play!</p>';
+                        return;
+                    }
+                    
+                    let html = '<table><tr><th>Rank</th><th>Player</th><th>Score</th><th>Date</th></tr>';
+                    scores.forEach((score, index) => {
+                        html += `<tr>
+                            <td>${index + 1}</td>
+                            <td>${score.player}</td>
+                            <td>${score.score}</td>
+                            <td>${new Date(score.date).toLocaleDateString()}</td>
+                        </tr>`;
+                    });
+                    html += '</table>';
+                    scoresList.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error fetching scores:', error);
+                    scoresList.innerHTML = '<p>Error loading scores. Please try again.</p>';
+                });
+        }
+        
+        // Load initial scores
+        document.addEventListener('DOMContentLoaded', () => {
+            showScores(selectedLanguage, selectedMode);
+        });
+    </script>
+</body>
+</html>

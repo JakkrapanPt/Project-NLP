@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Segmentation Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Game-specific styles */
+        .game-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .challenge-text {
+            font-size: 24px;
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+        
+        .segmentation-area {
+            position: relative;
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #fff;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+        }
+        
+        .char {
+            display: inline-block;
+            padding: 5px 2px;
+            font-size: 24px;
+            position: relative;
+        }
+        
+        .segment-marker {
+            display: inline-block;
+            width: 2px;
+            height: 30px;
+            background-color: transparent;
+            margin: 0 1px;
+            cursor: pointer;
+        }
+        
+        .segment-marker.active {
+            background-color: #ff5722;
+        }
+        
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            margin: 0 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .submit-btn {
+            background-color: #4caf50;
+            color: white;
+        }
+        
+        .reset-btn {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .new-challenge-btn {
+            background-color: #2196f3;
+            color: white;
+        }
+        
+        .result-container {
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+        
+        .correct {
+            background-color: #dff0d8;
+            border: 1px solid #d6e9c6;
+            color: #3c763d;
+        }
+        
+        .incorrect {
+            background-color: #f2dede;
+            border: 1px solid #ebccd1;
+            color: #a94442;
+        }
+        
+        .score-display {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .save-score-form {
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .save-score-form input {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        
+        .save-score-form button {
+            padding: 10px 20px;
+            background-color: #673ab7;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .home-btn {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: #607d8b;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            width: fit-content;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <header>
+            <h1>Word Segmentation Game</h1>
+            <p>Language: <span id="game-language">{{ language }}</span> | Difficulty: <span id="game-mode">{{ mode }}</span></p>
+        </header>
+        
+        <div class="challenge-text" id="challenge-text">
+            Loading challenge...
+        </div>
+        
+        <div class="segmentation-area" id="segmentation-area">
+            <!-- Characters and segment markers will be added here dynamically -->
+        </div>
+        
+        <div class="controls">
+            <button class="btn submit-btn" id="submit-btn">Submit Answer</button>
+            <button class="btn reset-btn" id="reset-btn">Reset Segments</button>
+            <button class="btn new-challenge-btn" id="new-challenge-btn">New Challenge</button>
+        </div>
+        
+        <div class="result-container" id="result-container">
+            <h2 id="result-heading">Result</h2>
+            <p id="result-message"></p>
+            <div class="score-display" id="score-display"></div>
+            <div class="correct-answer" id="correct-answer"></div>
+            
+            <div class="save-score-form" id="save-score-form">
+                <h3>Save Your Score</h3>
+                <input type="text" id="player-name" placeholder="Enter your name" maxlength="20">
+                <button id="save-score-btn">Save Score</button>
+            </div>
+        </div>
+        
+        <a href="/" class="home-btn">Back to Home</a>
+    </div>
+
+    <script>
+        // Game variables
+        const language = "{{ language }}";
+        const mode = "{{ mode }}";
+        let currentText = "";
+        let segments = [];
+        let totalScore = 0;
+        
+        // DOM elements
+        const challengeText = document.getElementById('challenge-text');
+        const segmentationArea = document.getElementById('segmentation-area');
+        const submitBtn = document.getElementById('submit-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const newChallengeBtn = document.getElementById('new-challenge-btn');
+        const resultContainer = document.getElementById('result-container');
+        const resultHeading = document.getElementById('result-heading');
+        const resultMessage = document.getElementById('result-message');
+        const scoreDisplay = document.getElementById('score-display');
+        const correctAnswer = document.getElementById('correct-answer');
+        const saveScoreForm = document.getElementById('save-score-form');
+        const playerNameInput = document.getElementById('player-name');
+        const saveScoreBtn = document.getElementById('save-score-btn');
+        
+        // Initialize the game
+        document.addEventListener('DOMContentLoaded', () => {
+            loadNewChallenge();
+        });
+        
+        // Load a new challenge
+        function loadNewChallenge() {
+            fetch(`/api/get-challenge?language=${language}&mode=${mode}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(`Error: ${data.error}`);
+                        return;
+                    }
+                    
+                    currentText = data.text;
+                    challengeText.textContent = currentText;
+                    
+                    // Reset the segmentation area
+                    segmentationArea.innerHTML = '';
+                    segments = [];
+                    
+                    // Create character and segment marker elements
+                    for (let i = 0; i < currentText.length; i++) {
+                        // Add segment marker before character (except for the first character)
+                        if (i > 0) {
+                            const marker = document.createElement('span');
+                            marker.className = 'segment-marker';
+                            marker.dataset.index = i;
+                            marker.addEventListener('click', toggleSegment);
+                            segmentationArea.appendChild(marker);
+                        }
+                        
+                        // Add character
+                        const charSpan = document.createElement('span');
+                        charSpan.className = 'char';
+                        charSpan.textContent = currentText[i];
+                        segmentationArea.appendChild(charSpan);
+                    }
+                    
+                    // Hide result container
+                    resultContainer.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error loading challenge:', error);
+                    alert('Failed to load challenge. Please try again.');
+                });
+        }
+        
+        // Toggle segment marker
+        function toggleSegment(event) {
+            const marker = event.target;
+            const index = parseInt(marker.dataset.index);
+            
+            if (marker.classList.contains('active')) {
+                // Remove segment
+                marker.classList.remove('active');
+                const segmentIndex = segments.indexOf(index);
+                if (segmentIndex !== -1) {
+                    segments.splice(segmentIndex, 1);
+                }
+            } else {
+                // Add segment
+                marker.classList.add('active');
+                segments.push(index);
+                segments.sort((a, b) => a - b);
+            }
+        }
+        
+        // Reset segments
+        resetBtn.addEventListener('click', () => {
+            document.querySelectorAll('.segment-marker').forEach(marker => {
+                marker.classList.remove('active');
+            });
+            segments = [];
+        });
+        
+        // Submit answer
+        submitBtn.addEventListener('click', () => {
+            // Create user segments based on segment markers
+            const userSegments = [];
+            let startIndex = 0;
+            
+            // Sort segments in ascending order
+            segments.sort((a, b) => a - b);
+            
+            // Create segments based on marker positions
+            for (const index of segments) {
+                userSegments.push(currentText.substring(startIndex, index));
+                startIndex = index;
+            }
+            
+            // Add the last segment
+            userSegments.push(currentText.substring(startIndex));
+            
+            // Send answer to server for checking
+            fetch('/api/check-answer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    language: language,
+                    text: currentText,
+                    segments: userSegments
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                // Display result
+                resultContainer.style.display = 'block';
+                
+                if (result.is_correct) {
+                    resultContainer.className = 'result-container correct';
+                    resultHeading.textContent = 'Correct!';
+                    resultMessage.textContent = 'Great job! Your segmentation is correct.';
+                } else {
+                    resultContainer.className = 'result-container incorrect';
+                    resultHeading.textContent = 'Not Quite Right';
+                    resultMessage.textContent = 'Your segmentation doesn\'t match the correct one.';
+                }
+                
+                // Update score
+                totalScore += result.score;
+                scoreDisplay.textContent = `Score: ${result.score} (Total: ${totalScore})`;
+                
+                // Show correct answer
+                const correctSegmentation = result.correct_segments.join(' | ');
+                correctAnswer.innerHTML = `<p>Correct segmentation:</p><p>${correctSegmentation}</p>`;
+                
+                // Show save score form
+                saveScoreForm.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error checking answer:', error);
+                alert('Failed to check answer. Please try again.');
+            });
+        });
+        
+        // Load new challenge
+        newChallengeBtn.addEventListener('click', loadNewChallenge);
+        
+        // Save score
+        saveScoreBtn.addEventListener('click', () => {
+            const playerName = playerNameInput.value.trim() || 'Anonymous';
+            
+            fetch('/api/save-score', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    player_name: playerName,
+                    score: totalScore,
+                    language: language,
+                    mode: mode
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('Score saved successfully!');
+                    saveScoreForm.style.display = 'none';
+                } else {
+                    alert('Failed to save score. Please try again.');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving score:', error);
+                alert('Failed to save score. Please try again.');
+            });
+        });
+    </script>
+</body>
+</html>
